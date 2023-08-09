@@ -19,11 +19,9 @@ async def archive(request, read_up_bytes=102400):
         async with aiofiles.open('404.html', mode='r') as error_file:
             error_contents = await error_file.read()
         raise web.HTTPNotFound(text=error_contents, content_type='text/html')
+    cmd = ['zip', '-r', '-', *os.listdir(photos_filepath)]
     process = await asyncio.create_subprocess_exec(
-        'zip',
-        '-r',
-        '-',
-        '..',
+        *cmd,
         stdout=asyncio.subprocess.PIPE,
         cwd=photos_filepath,
     )
@@ -84,11 +82,9 @@ def main():
     logger.setLevel(logging.INFO)
     logger.addHandler(logging.StreamHandler())
 
-    DELAY = args.delay
+    DELAY = bool(args.delay)
     PHOTOS_CATALOG = args.path
-
-    if not args.logging:
-        logger.disabled = True
+    logger.disabled = bool(args.logging)
 
     if not os.path.exists(PHOTOS_CATALOG):
         print(f"The photos catalog {PHOTOS_CATALOG} doesn't exist")
