@@ -1,17 +1,20 @@
 from aiohttp import web
 import aiofiles
 import datetime
+import argparse
 import asyncio
-import logging
 import os
+import logging
 
-
+logger = logging.getLogger(__name__)
 INTERVAL_SECS = 1
+PHOTOS_CATALOG = 'test_photos'
+DELAY = True
 
 
 async def archive(request, read_up_bytes=102400):
     archive_hash = request.match_info['archive_hash']
-    photos_filepath = os.path.join('test_photos', archive_hash)
+    photos_filepath = os.path.join(PHOTOS_CATALOG, archive_hash)
     if not os.path.exists(photos_filepath):
         async with aiofiles.open('404.html', mode='r') as error_file:
             error_contents = await error_file.read()
@@ -32,7 +35,8 @@ async def archive(request, read_up_bytes=102400):
             zip_binary = await process.stdout.read(read_up_bytes)
             logger.info('Sending archive chunk ...')
             await response.write(zip_binary)
-            await asyncio.sleep(1)
+            if DELAY:
+                await asyncio.sleep(5)
         return response
     except asyncio.CancelledError:
         logger.info('Download was interrupted')
@@ -70,13 +74,33 @@ async def handle_index_page(request):
     return web.Response(text=index_contents, content_type='text/html')
 
 
-if __name__ == '__main__':
-    logger = logging.getLogger(__name__)
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-l', '--logging', default='true', help='enable logging')
+    parser.add_argument('-d', '--delay', default='false', help='enable delay')
+    parser.add_argument('-p', '--path', default='test_photos', help='photos catalog path')
+    args = parser.parse_args()
+
     logger.setLevel(logging.INFO)
     logger.addHandler(logging.StreamHandler())
+
+    DELAY = args.delay
+    PHOTOS_CATALOG = args.path
+
+    if not args.logging:
+        logger.disabled = True
+
+    if not os.path.exists(PHOTOS_CATALOG):
+        print(f"The photos catalog {PHOTOS_CATALOG} doesn't exist")
+        return
+
     app = web.Application()
     app.add_routes([
         web.get('/', handle_index_page),
         web.get('/archive/{archive_hash}/', archive),
     ])
     web.run_app(app)
+
+
+if __name__ == '__main__':
+    main()
