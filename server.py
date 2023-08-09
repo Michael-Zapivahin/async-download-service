@@ -12,6 +12,10 @@ INTERVAL_SECS = 1
 async def archive(request, read_up_bytes=102400):
     archive_hash = request.match_info['archive_hash']
     photos_filepath = os.path.join('test_photos', archive_hash)
+    if not os.path.exists(photos_filepath):
+        async with aiofiles.open('404.html', mode='r') as error_file:
+            error_contents = await error_file.read()
+        raise web.HTTPNotFound(text=error_contents, content_type='text/html')
     process = await asyncio.create_subprocess_exec(
         'zip',
         '-r',
@@ -26,6 +30,7 @@ async def archive(request, read_up_bytes=102400):
     try:
         while not process.stdout.at_eof():
             zip_binary = await process.stdout.read(read_up_bytes)
+            logger.info('Sending archive chunk ...')
             await response.write(zip_binary)
             await asyncio.sleep(1)
         return response
